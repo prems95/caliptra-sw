@@ -12,11 +12,11 @@ Abstract:
 
 --*/
 
+use crate::{cprintln, rom_env::RomEnv};
+use caliptra_cfi_derive::cfi_mod_fn;
 use caliptra_drivers::{
     ColdResetEntry4, ColdResetEntry48, ResetReason, WarmResetEntry4, WarmResetEntry48,
 };
-
-use crate::{cprintln, rom_env::RomEnv};
 
 /// Lock registers
 ///
@@ -24,6 +24,7 @@ use crate::{cprintln, rom_env::RomEnv};
 ///
 /// * `env` - ROM Environment
 /// * `reset_reason` - Reset reason
+#[cfg_attr(not(feature = "no_cfi"), cfi_mod_fn)]
 pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
     cprintln!("[state] Locking Datavault");
     if reset_reason == ResetReason::ColdReset {
@@ -48,6 +49,7 @@ pub fn lock_registers(env: &mut RomEnv, reset_reason: ResetReason) {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg_attr(not(feature = "no_cfi"), cfi_mod_fn)]
 fn lock_cold_reset_reg(env: &mut RomEnv) {
     // Lock the FMC TCI in data vault until next cold reset
     env.data_vault
@@ -79,6 +81,7 @@ fn lock_cold_reset_reg(env: &mut RomEnv) {
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg_attr(not(feature = "no_cfi"), cfi_mod_fn)]
 fn lock_common_reg_set(env: &mut RomEnv) {
     // Lock the Runtime TCI in data vault until next reset
     env.data_vault

@@ -18,9 +18,11 @@ use super::dice::{DiceInput, DiceOutput};
 use super::fw_processor::FwProcInfo;
 use super::x509::X509;
 use crate::cprintln;
-use crate::flow::cold_reset::{copy_tbs, TbsType};
+use crate::flow::cold_reset::{ColdResetFlow, TbsType};
 use crate::print::HexBytes;
 use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_impl_fn;
+use caliptra_cfi_lib::{cfi_assert, cfi_assert_eq, cfi_launder};
 use caliptra_common::dice;
 use caliptra_common::keyids::{KEY_ID_FMC_PRIV_KEY, KEY_ID_ROM_FMC_CDI};
 use caliptra_common::RomBootStatus::*;
@@ -35,6 +37,7 @@ pub struct FmcAliasLayer {}
 
 impl FmcAliasLayer {
     /// Perform derivations for the DICE layer
+    #[cfg_attr(not(feature = "no_cfi"), cfi_impl_fn)]
     pub fn derive(
         env: &mut RomEnv,
         input: &DiceInput,
@@ -58,7 +61,6 @@ impl FmcAliasLayer {
 
         // Derive DICE Key Pair from CDI
         let key_pair = Self::derive_key_pair(env, KEY_ID_ROM_FMC_CDI, KEY_ID_FMC_PRIV_KEY)?;
-        report_boot_status(FmcAliasKeyPairDerivationComplete.into());
 
         // Generate the Subject Serial Number and Subject Key Identifier.
         //
@@ -94,6 +96,7 @@ impl FmcAliasLayer {
     /// * `env` - ROM Environment
     /// * `measurements` - Array containing the FMC measurements
     /// * `cdi` - Key Slot to store the generated CDI
+    #[cfg_attr(not(feature = "no_cfi"), cfi_impl_fn)]
     fn derive_cdi(env: &mut RomEnv, measurements: &Array4x12, cdi: KeyId) -> CaliptraResult<()> {
         let mut measurements: [u8; 48] = measurements.into();
 
@@ -114,12 +117,20 @@ impl FmcAliasLayer {
     /// # Returns
     ///
     /// * `Ecc384KeyPair` - Derive DICE Layer Key Pair
+    #[cfg_attr(not(feature = "no_cfi"), cfi_impl_fn)]
     fn derive_key_pair(
         env: &mut RomEnv,
         cdi: KeyId,
         priv_key: KeyId,
     ) -> CaliptraResult<Ecc384KeyPair> {
-        Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key)
+        let result = Crypto::ecc384_key_gen(env, cdi, b"fmc_alias_keygen", priv_key);
+        if cfi_launder(result.is_ok()) {
+            cfi_assert!(result.is_ok());
+            report_boot_status(FmcAliasKeyPairDerivationComplete.into());
+        } else {
+            cfi_assert!(result.is_err());
+        }
+        result
     }
 
     /// Generate Local Device ID Certificate Signature
@@ -129,6 +140,7 @@ impl FmcAliasLayer {
     /// * `env`    - ROM Environment
     /// * `input`  - DICE Input
     /// * `output` - DICE Output
+    #[cfg_attr(not(feature = "no_cfi"), cfi_impl_fn)]
     fn generate_cert_sig(
         env: &mut RomEnv,
         input: &DiceInput,
@@ -179,7 +191,10 @@ impl FmcAliasLayer {
 
         // Verify the signature of the `To Be Signed` portion
         let result = Crypto::ecdsa384_verify(env, auth_pub_key, tbs.tbs(), sig)?;
-        if result != Ecc384Result::Success {
+        if cfi_launder(result) == Ecc384Result::Success {
+            cfi_assert!(result == Ecc384Result::Success);
+        } else {
+            cfi_assert!(result != Ecc384Result::Success);
             return Err(CaliptraError::FMC_ALIAS_CERT_VERIFY);
         }
 
@@ -201,7 +216,7 @@ impl FmcAliasLayer {
         env.data_vault.set_fmc_pub_key(pub_key);
 
         //  Copy TBS to DCCM.
-        copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs, env)?;
+        ColdResetFlow::copy_tbs(tbs.tbs(), TbsType::FmcaliasTbs, env)?;
 
         report_boot_status(FmcAliasCertSigGenerationComplete.into());
         Ok(())

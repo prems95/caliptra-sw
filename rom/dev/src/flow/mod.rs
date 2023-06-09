@@ -17,6 +17,8 @@ mod update_reset;
 mod warm_reset;
 
 use crate::rom_env::RomEnv;
+use caliptra_cfi_derive::cfi_mod_fn;
+use caliptra_cfi_lib::{cfi_assert_eq, cfi_launder};
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_drivers::{CaliptraResult, ResetReason};
 use caliptra_error::CaliptraError;
@@ -26,19 +28,32 @@ use caliptra_error::CaliptraError;
 /// # Arguments
 ///
 /// * `env` - ROM Environment
+#[cfg_attr(not(feature = "no_cfi"), cfi_mod_fn)]
 pub fn run(env: &mut RomEnv) -> CaliptraResult<Option<FirmwareHandoffTable>> {
     let reset_reason = env.soc_ifc.reset_reason();
-    match reset_reason {
+    match cfi_launder(reset_reason) {
         // Cold Reset Flow
-        ResetReason::ColdReset => cold_reset::ColdResetFlow::run(env),
+        ResetReason::ColdReset => {
+            cfi_assert_eq(reset_reason, ResetReason::ColdReset);
+            cold_reset::ColdResetFlow::run(env)
+        }
 
         // Warm Reset Flow
-        ResetReason::WarmReset => warm_reset::WarmResetFlow::run(env),
+        ResetReason::WarmReset => {
+            cfi_assert_eq(reset_reason, ResetReason::WarmReset);
+            warm_reset::WarmResetFlow::run(env)
+        }
 
         // Update Reset Flow
-        ResetReason::UpdateReset => update_reset::UpdateResetFlow::run(env),
+        ResetReason::UpdateReset => {
+            cfi_assert_eq(reset_reason, ResetReason::UpdateReset);
+            update_reset::UpdateResetFlow::run(env)
+        }
 
         // Unknown/Spurious Reset Flow
-        ResetReason::Unknown => Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW),
+        ResetReason::Unknown => {
+            cfi_assert_eq(reset_reason, ResetReason::Unknown);
+            Err(CaliptraError::ROM_UNKNOWN_RESET_FLOW)
+        }
     }
 }
