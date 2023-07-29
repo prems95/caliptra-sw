@@ -12,6 +12,7 @@ pub mod checksum;
 pub mod fuse;
 pub mod helpers;
 pub mod keyids;
+pub mod measurement;
 pub mod memory_layout;
 pub mod pcr;
 
@@ -23,6 +24,7 @@ pub use hand_off::{
 
 pub use boot_status::RomBootStatus;
 pub use fuse::{FuseLogEntry, FuseLogEntryId};
+pub use measurement::StashMeasurement;
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 pub use printer::HexBytes;
 pub use printer::MutablePrinter;

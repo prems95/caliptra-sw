@@ -20,9 +20,10 @@ use caliptra_common::memory_layout::{
 use caliptra_common::FirmwareHandoffTable;
 use caliptra_common::{FuseLogEntry, FuseLogEntryId};
 use caliptra_common::{PcrLogEntry, PcrLogEntryId};
-use caliptra_drivers::ColdResetEntry4::*;
+use caliptra_drivers::{ColdResetEntry4::*, PcrBank, PcrId};
 use caliptra_drivers::{DataVault, Mailbox};
 use caliptra_registers::dv::DvReg;
+use caliptra_registers::pv::PvReg;
 use caliptra_x509::{Ecdsa384CertBuilder, Ecdsa384Signature, FmcAliasCertTbs, LocalDevIdCertTbs};
 use core::ptr;
 use ureg::RealMmioMut;
@@ -218,6 +219,10 @@ fn process_mailbox_command(mbox: &caliptra_registers::mbox::RegisterBlock<RealMm
         0x1000_0005 => {
             read_datavault_coldresetentry4(mbox);
         }
+        0x1000_0006 => {
+            read_pcr1(mbox);
+        }
+
         _ => {}
     }
 }
@@ -235,6 +240,13 @@ fn process_mailbox_commands() {
 
     #[cfg(not(feature = "interactive_test_fmc"))]
     process_mailbox_command(&mbox);
+}
+
+fn read_pcr1(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {
+    let pcr_bank = unsafe { PcrBank::new(PvReg::new()) };
+    // Note: read_pcr returns PCR in big-endiean; convert to little-endian before sending to mailbox.
+    let pcr1: [u8; 48] = pcr_bank.read_pcr(PcrId::PcrId1).into();
+    send_to_mailbox(mbox, &pcr1, true);
 }
 
 fn read_datavault_coldresetentry4(mbox: &caliptra_registers::mbox::RegisterBlock<RealMmioMut>) {

@@ -16,7 +16,10 @@ use crate::fuse::log_fuse_data;
 use crate::rom_env::RomEnv;
 use crate::{cprintln, verifier::RomImageVerificationEnv};
 use crate::{pcr, wdt};
-use caliptra_common::{cprint, memory_layout::MAN1_ORG, FuseLogEntryId, RomBootStatus::*};
+use caliptra_common::{
+    cprint, measurement::StashMeasurement, memory_layout::MAN1_ORG, FuseLogEntryId,
+    RomBootStatus::*,
+};
 use caliptra_drivers::*;
 use caliptra_image_types::{ImageManifest, IMAGE_BYTE_SIZE};
 use caliptra_image_verify::{ImageVerificationInfo, ImageVerificationLogInfo, ImageVerifier};
@@ -45,14 +48,23 @@ pub struct FirmwareProcessor {}
 
 impl FirmwareProcessor {
     /// Download firmware mailbox command ID.
-    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x46574C44;
+    const MBOX_DOWNLOAD_FIRMWARE_CMD_ID: u32 = 0x4657_4C44;
+
+    const MBOX_STASH_MEASUREMENT_CMD_ID: u32 = 0x4D45_4153;
+
+    const MEASUREMENT_MAX_COUNT: u32 = 8;
 
     pub fn process(env: &mut RomEnv) -> CaliptraResult<FwProcInfo> {
-        // Disable the watchdog timer during firmware download.
+        // Disable the watchdog timer during processing mailbox commands.
         wdt::stop_wdt(&mut env.soc_ifc);
 
-        // Download the image
-        let mut txn = Self::download_image(&mut env.soc_ifc, &mut env.mbox)?;
+        // Process mailbox commands.
+        let mut txn = Self::process_mailbox_commands(
+            &mut env.soc_ifc,
+            &mut env.mbox,
+            &env.pcr_bank,
+            &mut env.sha384,
+        )?;
 
         // Renable the watchdog timer.
         wdt::start_wdt(&mut env.soc_ifc);
@@ -102,52 +114,82 @@ impl FirmwareProcessor {
         })
     }
 
-    /// Download the image
+    /// Process mailbox commands
     ///
     /// # Arguments
     ///
-    /// * `env` - ROM Environment
+    /// * `soc_ifc` - SOC Interface
+    /// * `mbox` - Mailbox
+    /// * `pcr_bank` - PCR Bank
+    /// * `sha384` - SHA384
     ///
     /// # Returns
+    /// * `MailboxRecvTxn` - Mailbox Receive Transaction
     ///
     /// Mailbox transaction handle. This transaction is ManuallyDrop because we
     /// don't want the transaction to be completed with failure until after
     /// handle_fatal_error is called. This prevents a race condition where the SoC
     /// reads FW_ERROR_NON_FATAL immediately after the mailbox transaction
     /// fails, but before caliptra has set the FW_ERROR_NON_FATAL register.
-    fn download_image<'a>(
+    fn process_mailbox_commands<'a>(
         soc_ifc: &mut SocIfc,
         mbox: &'a mut Mailbox,
+        pcr_bank: &PcrBank,
+        sha384: &mut Sha384,
     ) -> CaliptraResult<ManuallyDrop<MailboxRecvTxn<'a>>> {
         soc_ifc.flow_status_set_ready_for_firmware();
 
-        cprint!("[afmc] Waiting for Image ");
+        cprint!("[afmc] Waiting for Measurement(s) or Image ");
+        let mut measurement_count = 0;
         loop {
             if let Some(txn) = mbox.peek_recv() {
-                if txn.cmd() != Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID {
-                    cprintln!("Invalid command 0x{:08x} received", txn.cmd());
-                    txn.start_txn().complete(false)?;
-                    continue;
+                match txn.cmd() {
+                    Self::MBOX_STASH_MEASUREMENT_CMD_ID => {
+                        if measurement_count == Self::MEASUREMENT_MAX_COUNT {
+                            cprintln!(
+                                "[afmc] Maximum supported number of measurements already received, ignoring."
+                            );
+                            txn.start_txn().complete(false)?;
+                            continue;
+                        }
+
+                        // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                        let txn = mbox
+                            .peek_recv()
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+
+                        // Extend the measurement into PCR1.
+                        let mut txn = ManuallyDrop::new(txn.start_txn());
+                        Self::extend_measurement(pcr_bank, sha384, &mut txn)?;
+                        measurement_count += 1;
+                        txn.complete(true)?;
+                    }
+                    Self::MBOX_DOWNLOAD_FIRMWARE_CMD_ID => {
+                        // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
+                        let txn = mbox
+                            .peek_recv()
+                            .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
+
+                        // This is a download-firmware command; don't drop this, as the
+                        // transaction will be completed by either handle_fatal_error() (on
+                        // failure) or by a manual complete call upon success.
+                        let txn = ManuallyDrop::new(txn.start_txn());
+                        if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
+                            cprintln!("Invalid Image of size {} bytes" txn.dlen());
+                            return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
+                        }
+
+                        cprintln!("");
+                        cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
+                        report_boot_status(FwProcessorDownloadImageComplete.into());
+                        return Ok(txn);
+                    }
+                    _ => {
+                        cprintln!("Invalid command 0x{:08x} received", txn.cmd());
+                        txn.start_txn().complete(false)?;
+                        continue;
+                    }
                 }
-
-                // Re-borrow mailbox to work around https://github.com/rust-lang/rust/issues/54663
-                let txn = mbox
-                    .peek_recv()
-                    .ok_or(CaliptraError::FW_PROC_MAILBOX_STATE_INCONSISTENT)?;
-
-                // This is a download-firmware command; don't drop this, as the
-                // transaction will be completed by either handle_fatal_error() (on
-                // failure) or by a manual complete call upon success.
-                let txn = ManuallyDrop::new(txn.start_txn());
-                if txn.dlen() == 0 || txn.dlen() > IMAGE_BYTE_SIZE as u32 {
-                    cprintln!("Invalid Image of size {} bytes" txn.dlen());
-                    return Err(CaliptraError::FW_PROC_INVALID_IMAGE_SIZE);
-                }
-
-                cprintln!("");
-                cprintln!("[afmc] Received Image of size {} bytes" txn.dlen());
-                report_boot_status(FwProcessorDownloadImageComplete.into());
-                return Ok(txn);
             }
         }
     }
@@ -384,5 +426,32 @@ impl FirmwareProcessor {
         }
 
         (nb, nf)
+    }
+
+    /// Extend measurement into PCR1
+    /// # Arguments
+    /// * `pcr_bank` - PCR Bank
+    /// * `sha384` - SHA384
+    /// * `txn` - Mailbox Receive Transaction
+    /// # Returns
+    /// * `()` - Ok
+    ///     Err - StashMeasurementReadFailure
+    fn extend_measurement(
+        pcr_bank: &PcrBank,
+        sha384: &mut Sha384,
+        txn: &mut MailboxRecvTxn,
+    ) -> CaliptraResult<()> {
+        const MEASUREMENT_WORDS: usize =
+            core::mem::size_of::<StashMeasurement>() / core::mem::size_of::<u32>();
+        let mut slice: [u32; MEASUREMENT_WORDS] = [0u32; MEASUREMENT_WORDS];
+        txn.copy_request(&mut slice)?;
+
+        let measurement = StashMeasurement::read_from(slice.as_bytes())
+            .ok_or(CaliptraError::FW_PROC_STASH_MEASUREMENT_READ_FAILURE)?;
+
+        // Extend measurement into PCR1.
+        pcr_bank.extend_pcr(PcrId::PcrId1, sha384, measurement.measurement.as_bytes())?;
+
+        Ok(())
     }
 }
