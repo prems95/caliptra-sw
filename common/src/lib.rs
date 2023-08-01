@@ -14,6 +14,7 @@ pub mod helpers;
 pub mod keyids;
 pub mod memory_layout;
 pub mod pcr;
+pub mod wdt;
 
 ///merge imports
 pub use hand_off::{
@@ -26,6 +27,7 @@ pub use fuse::{FuseLogEntry, FuseLogEntryId};
 pub use pcr::{PcrLogEntry, PcrLogEntryId, RT_FW_CURRENT_PCR, RT_FW_JOURNEY_PCR};
 pub use printer::HexBytes;
 pub use printer::MutablePrinter;
+pub use wdt::{restart_wdt, start_wdt, stop_wdt, WdtTimeout};
 
 pub const FMC_ORG: u32 = 0x40000000;
 pub const FMC_SIZE: u32 = 16 * 1024;
