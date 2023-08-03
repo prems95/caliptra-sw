@@ -1,37 +1,83 @@
 // Licensed under the Apache-2.0 license
+
 use core::ops::Range;
 
 use caliptra_common::cprintln;
 use caliptra_common::memory_layout::ICCM_ORG;
 use caliptra_common::memory_layout::ICCM_SIZE;
 use caliptra_common::memory_layout::MBOX_ORG;
-
 use caliptra_common::FMC_ORG;
 use caliptra_common::MAN1_ORG;
 use caliptra_common::RUNTIME_ORG;
-use caliptra_drivers::RomVerifyConfig;
-use caliptra_drivers::{
-    Array4x12, CaliptraError, CaliptraResult, DataVault, Ecc384, Ecc384PubKey, Ecc384Result,
-    Ecc384Signature, Hmac384, KeyVault, Lifecycle, Lms, LmsResult, Sha256, Sha384, Sha384Acc,
-    SocIfc, VendorPubKeyRevocation,
-};
-
+use caliptra_drivers::Array4x12;
+use caliptra_drivers::CaliptraError;
+use caliptra_drivers::CaliptraResult;
+use caliptra_drivers::DataVault;
+use caliptra_drivers::Ecc384;
+use caliptra_drivers::Ecc384PubKey;
+use caliptra_drivers::Ecc384Result;
+use caliptra_drivers::Ecc384Signature;
+use caliptra_drivers::Lifecycle;
+use caliptra_drivers::Lms;
+use caliptra_drivers::LmsResult;
+use caliptra_drivers::LmsVerifyConfig;
+use caliptra_drivers::ResetReason;
+use caliptra_drivers::Sha256;
+use caliptra_drivers::Sha384Acc;
+use caliptra_drivers::SocIfc;
+use caliptra_drivers::VendorPubKeyRevocation;
+use caliptra_image_types::ImageDigest;
+use caliptra_image_types::ImageEccPubKey;
+use caliptra_image_types::ImageEccSignature;
 use caliptra_image_types::ImageLmsPublicKey;
 use caliptra_image_types::ImageLmsSignature;
 use caliptra_image_types::SHA384_DIGEST_BYTE_SIZE;
-use caliptra_image_types::{ImageDigest, ImageEccPubKey, ImageEccSignature};
 use caliptra_image_verify::ImageVerificationEnv;
-
-use caliptra_kat::{Ecc384Kat, Hmac384Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
+use caliptra_image_verify::ImageVerifier;
+use caliptra_kat::{Ecc384Kat, Hmac384Kat, LmsKat, Sha1Kat, Sha256Kat, Sha384AccKat, Sha384Kat};
 use caliptra_registers::mbox::enums::MboxStatusE;
+use zerocopy::{AsBytes, FromBytes};
 
-use crate::{Drivers, FipsVersionResp, MailboxResp, MailboxRespHeader, MemoryRegions};
-use zerocopy::AsBytes;
+use crate::Drivers;
+use crate::MemoryRegions;
 
 pub struct FipsModule;
 
+#[repr(C)]
+#[derive(Clone, Debug, Default, AsBytes, FromBytes)]
+pub struct VersionResponse {
+    pub mode: u32,
+    pub fips_rev: [u32; 3],
+    pub name: [u8; 12],
+}
+
+impl VersionResponse {
+    pub const NAME: [u8; 12] = *b"Caliptra RTM";
+    pub const MODE: u32 = 0x46495053;
+
+    pub fn new(_env: &Drivers) -> Self {
+        Self {
+            mode: Self::MODE,
+            // Just return all zeroes for now.
+            fips_rev: [1, 0, 0],
+            name: Self::NAME,
+        }
+    }
+    pub fn copy_to_mbox(&self, env: &mut Drivers) -> CaliptraResult<()> {
+        let mbox = &mut env.mbox;
+        mbox.write_response(self.as_bytes())
+    }
+}
+
 /// Fips command handler.
 impl FipsModule {
+    pub fn version(env: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS Version");
+
+        VersionResponse::new(env).copy_to_mbox(env)?;
+        Ok(MboxStatusE::DataReady)
+    }
+
     fn copy_image_to_mbox(env: &mut Drivers) {
         let mbox_ptr = MBOX_ORG as *mut u8;
         let man1_ptr = MAN1_ORG as *const u8;
@@ -60,24 +106,43 @@ impl FipsModule {
             );
         }
     }
+    pub fn self_test(env: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+        cprintln!("[rt] FIPS self test");
+        Self::execute_kats(env)?;
 
-    /// Clear data structures in DCCM.
+        //env.regions.mbox.fill(0);
+
+        // Reconstruct the image in the mailbox.
+        Self::copy_image_to_mbox(env);
+
+        let venv = FipsTestEnv {
+            sha384_acc: &mut env.sha384_acc,
+            ecc384: &mut env.ecc384,
+            sha256: &mut env.sha256,
+            soc_ifc: &mut env.soc_ifc,
+            data_vault: &env.data_vault,
+        };
+
+        let mut verifier = ImageVerifier::new(venv);
+        //Verify Caliptra image loaded to ICCM by ROM using the manifest stored in DCCM.
+        verifier.verify(
+            &env.manifest,
+            caliptra_common::memory_layout::MBOX_SIZE,
+            ResetReason::ColdReset,
+        )?;
+
+        Ok(MboxStatusE::CmdComplete)
+    }
+
+    pub fn shutdown(env: &mut Drivers) -> CaliptraResult<MboxStatusE> {
+        Self::zeroize(env);
+        env.mbox.set_status(MboxStatusE::CmdComplete);
+
+        Err(CaliptraError::RUNTIME_SHUTDOWN)
+    }
+
+    /// Clear data structures in DCCM.  
     fn zeroize(env: &mut Drivers) {
-        unsafe {
-            // Zeroize the crypto blocks.
-            Ecc384::zeroize();
-            Hmac384::zeroize();
-            Sha256::zeroize();
-            Sha384::zeroize();
-            Sha384Acc::zeroize();
-
-            // Zeroize the key vault.
-            KeyVault::zeroize();
-
-            // Lock the SHA Accelerator.
-            Sha384Acc::lock();
-        }
-
         env.regions.zeroize();
     }
 
@@ -98,48 +163,13 @@ impl FipsModule {
         cprintln!("[kat] Executing HMAC-384 Engine KAT");
         Hmac384Kat::default().execute(&mut env.hmac384, &mut env.trng)?;
 
+        cprintln!("[kat] sha1");
+        Sha1Kat::default().execute(&mut env.sha1)?;
+
+        cprintln!("[kat] LMS");
+        LmsKat::default().execute(&mut env.sha256, &env.lms)?;
+
         Ok(())
-    }
-}
-
-pub struct FipsVersionCmd;
-impl FipsVersionCmd {
-    pub const NAME: [u8; 12] = *b"Caliptra RTM";
-    pub const MODE: u32 = 0x46495053;
-
-    pub(crate) fn execute(_env: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        cprintln!("[rt] FIPS Version");
-
-        let resp = FipsVersionResp {
-            hdr: MailboxRespHeader::default(),
-            mode: Self::MODE,
-            // Just return all zeroes for now.
-            fips_rev: [1, 0, 0],
-            name: Self::NAME,
-        };
-
-        Ok(MailboxResp::FipsVersion(resp))
-    }
-}
-
-pub struct FipsSelfTestCmd;
-impl FipsSelfTestCmd {
-    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        cprintln!("[rt] FIPS self test");
-        FipsModule::execute_kats(env)?;
-        FipsModule::copy_image_to_mbox(env);
-
-        Ok(MailboxResp::default())
-    }
-}
-
-pub struct FipsShutdownCmd;
-impl FipsShutdownCmd {
-    pub(crate) fn execute(env: &mut Drivers) -> CaliptraResult<MailboxResp> {
-        FipsModule::zeroize(env);
-        env.mbox.set_status(MboxStatusE::CmdComplete);
-
-        Err(CaliptraError::RUNTIME_SHUTDOWN)
     }
 }
 
@@ -266,6 +296,6 @@ impl ImageVerificationEnv for FipsTestEnv<'_> {
     }
 
     fn lms_verify_enabled(&self) -> bool {
-        self.soc_ifc.fuse_bank().lms_verify() == RomVerifyConfig::EcdsaAndLms
+        self.soc_ifc.fuse_bank().lms_verify() == LmsVerifyConfig::EcdsaAndLms
     }
 }
