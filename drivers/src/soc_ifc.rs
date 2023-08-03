@@ -33,7 +33,7 @@ pub fn report_boot_status(val: u32) {
         *ptr = val;
     };
 
-    // Save the boot status in the boot status register only if debugging is enabled.
+    // For testability, save the boot status in the boot status register only if debugging is enabled.
     if !soc_ifc.regs().cptra_security_state().read().debug_locked() {
         soc_ifc.regs_mut().cptra_boot_status().write(|_| val);
     }
