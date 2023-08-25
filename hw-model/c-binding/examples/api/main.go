@@ -126,7 +126,7 @@ func main() {
             fmt.Println(profileBuffer)
             var Check C.caliptra_output
             var profile C.int
-            profile := 5
+            profile = 5
             profile = C.caliptra_get_profile(model, &profileBuffer,test,&Check)
             fmt.Println("***********Status***************:\n",profile)
             fmt.Println(test)
