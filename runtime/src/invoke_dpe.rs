@@ -10,11 +10,11 @@ pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
         cprintln!(
-            "[rt] *****************************TEST MAILBOX 1*********************************",
+            "[rt] *****************************TEST MAILBOX 1*********************************"
         );
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
             cprintln!(
-                "[rt] *****************************TEST MAILBOX 2*********************************",
+                "[rt] *****************************TEST MAILBOX 2*********************************"
             );
             let mut response_buf = [0u8; InvokeDpeResp::DATA_MAX_SIZE];
             let mut env = DpeEnv::<CptraDpeTypes> {
@@ -26,7 +26,7 @@ impl InvokeDpeCmd {
                 .execute_serialized_command(&mut env, drivers.mbox.user(), &cmd.data)
             {
                 cprintln!(
-                    "[rt] *****************************TEST MAILBOX 3*********************************",
+                    "[rt] *****************************TEST MAILBOX 3*********************************"
                 );
                 Ok(resp) => {
                     let serialized_resp = resp.as_bytes();
