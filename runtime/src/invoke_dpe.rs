@@ -9,11 +9,11 @@ use zerocopy::FromBytes;
 pub struct InvokeDpeCmd;
 impl InvokeDpeCmd {
     pub(crate) fn execute(drivers: &mut Drivers, cmd_args: &[u8]) -> CaliptraResult<MailboxResp> {
-        cprintln!(
+        println!(
             "[rt] *****************************TEST MAILBOX 1*********************************"
         );
         if let Some(cmd) = InvokeDpeReq::read_from(cmd_args) {
-            cprintln!(
+            println!(
                 "[rt] *****************************TEST MAILBOX 2*********************************"
             );
             let mut response_buf = [0u8; InvokeDpeResp::DATA_MAX_SIZE];
@@ -25,7 +25,7 @@ impl InvokeDpeCmd {
                 .dpe
                 .execute_serialized_command(&mut env, drivers.mbox.user(), &cmd.data)
             {
-                cprintln!(
+                println!(
                     "[rt] *****************************TEST MAILBOX 3*********************************"
                 );
                 Ok(resp) => {
