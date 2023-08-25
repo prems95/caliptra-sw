@@ -125,6 +125,7 @@ func main() {
             profileBuffer := C.create_invoke_dpe_command(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),C.uint32_t(0x1))
             fmt.Println(profileBuffer)
             var Check C.caliptra_output
+            var profile C.int
             profile := 5
             profile = C.caliptra_get_profile(model, &profileBuffer,test,&Check)
             fmt.Println("***********Status***************:\n",profile)
