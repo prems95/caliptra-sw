@@ -202,7 +202,7 @@ int caliptra_get_profile(struct caliptra_model *model, struct caliptra_buffer *f
     uint32_t *status;
     int mStatus;
     const uint32_t error_code = 0x3003000c;
-       test.data = (uint8_t *)malloc(data_size);
+       test->data = (uint8_t *)malloc(512);
        struct caliptra_buffer out_buf = {
         .data = (uint8_t *)test,
         .len = sizeof(struct caliptra_output),
