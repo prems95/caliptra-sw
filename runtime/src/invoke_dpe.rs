@@ -1,6 +1,5 @@
 // Licensed under the Apache-2.0 license
 
-use caliptra_common::cprintln;
 use crate::{CptraDpeTypes, DpeCrypto, DpeEnv, DpePlatform, Drivers};
 use caliptra_common::mailbox_api::{InvokeDpeReq, InvokeDpeResp, MailboxResp, MailboxRespHeader};
 use caliptra_drivers::{CaliptraError, CaliptraResult};
