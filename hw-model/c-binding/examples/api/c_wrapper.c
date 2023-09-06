@@ -38,7 +38,7 @@ void create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile, CommandH
     }
 }
 
-caliptra_buffer create_invoke_dpe_command(const uint8_t* data, uint32_t data_size) {
+caliptra_buffer create_invoke_dpe_command(uint8_t* data, uint32_t data_size) {
     printf("****INVOKE 1**********\n");
     fflush(stdout);
    // CommandHdr cmdHdr;
