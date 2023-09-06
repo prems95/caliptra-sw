@@ -28,11 +28,6 @@ type CommandHdr struct {
 	Profile Profile
 }
 
-type Profile struct {
-	MajorVersion uint16
-	MinorVersion uint16
-}
-
 // Initialize Model
 var model *C.caliptra_model
 
@@ -133,8 +128,12 @@ func Start() {
 func Commands(bytes []byte){
     var test C.uint32_t
      // Convert the []byte to a *C.uchar pointer
-    cBytes := (*C.uchar)(unsafe.Pointer(&bytes[0]))
-    profileBuffer := C.create_invoke_dpe_command(cBytes)
+     cBytes := (*C.uint8_t)(unsafe.Pointer(&bytes[0])) // Pointer to the first element
+     length := C.size_t(len(bytes))
+ 
+     // Convert the length to uint32_t using type conversion
+     dataSize := C.uint32_t(length)
+    profileBuffer := C.create_invoke_dpe_command(cBytes,dataSize)
     fmt.Println(profileBuffer)
     var Check C.caliptra_output
     var profile C.int

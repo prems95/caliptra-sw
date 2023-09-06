@@ -38,7 +38,7 @@ void create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile, CommandH
     }
 }
 
-caliptra_buffer create_invoke_dpe_command(uint8_t bytes) {
+caliptra_buffer create_invoke_dpe_command(const uint8_t* data, uint32_t data_size) {
     printf("****INVOKE 1**********\n");
     fflush(stdout);
    // CommandHdr cmdHdr;
@@ -46,9 +46,9 @@ caliptra_buffer create_invoke_dpe_command(uint8_t bytes) {
     printf("****INVOKE 2**********\n");
     fflush(stdout);
 
-    uint32_t data_size = sizeof(bytes);
+    //uint32_t data_size = sizeof(bytes);
     const uint32_t OP_INVOKE_DPE_COMMAND = 0x44504543;
-    printf("%u\n", calculate_caliptra_checksum(OP_INVOKE_DPE_COMMAND, (uint8_t*)&bytes, data_size));
+    printf("%u\n", calculate_caliptra_checksum(OP_INVOKE_DPE_COMMAND, data, data_size));
 
     INVOKE_DPE_COMMAND* invokeCmd = (INVOKE_DPE_COMMAND*)malloc(sizeof(INVOKE_DPE_COMMAND));
     if (invokeCmd != NULL) {
@@ -56,7 +56,7 @@ caliptra_buffer create_invoke_dpe_command(uint8_t bytes) {
         fflush(stdout);
         invokeCmd->data_size = data_size;
          // Copy cmdHdr data into invokeCmd->data
-        memcpy(invokeCmd->data, &bytes, data_size);
+        memcpy(invokeCmd->data, data, data_size);
         invokeCmd->chksum = calculate_caliptra_checksum(OP_INVOKE_DPE_COMMAND, (uint8_t*)invokeCmd, sizeof(INVOKE_DPE_COMMAND) - sizeof(uint32_t));
         printf("*********INVOKE 4************\n");
         fflush(stdout);

@@ -20,6 +20,6 @@ typedef struct  {
 
 
 void create_command_hdr(uint32_t magic, uint32_t cmd, uint32_t profile, CommandHdr* cmdHdr);
-caliptra_buffer create_invoke_dpe_command(uint8_t bytes);
+caliptra_buffer create_invoke_dpe_command(const uint8_t* data, size_t length);
 
 #endif
