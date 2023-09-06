@@ -86,7 +86,7 @@ func Start() {
     }*/
 
     romPath := "../out/caliptra_rom.bin"
-    fwPath := "..out/image_bundle.bin"
+    fwPath := "../out/image_bundle.bin"
 
     // Initialize Params
     initParams := C.caliptra_model_init_params{
