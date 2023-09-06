@@ -1,4 +1,4 @@
-package commands
+package main
 
 // #cgo CFLAGS: -I./../out/debug -std=c99
 // #cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -lc_wrapper -ldl
@@ -17,7 +17,6 @@ package commands
 import "C"
 
 import (
-    "flag"
     "os"
     "unsafe"
 	"fmt"
@@ -33,6 +32,9 @@ type Profile struct {
 	MajorVersion uint16
 	MinorVersion uint16
 }
+
+// Initialize Model
+var model *C.caliptra_model
 
 type CommandCode uint32
 
@@ -77,7 +79,7 @@ func read_file_or_die(path *C.char) C.caliptra_buffer {
     return buffer
 }
 
-func start() {
+func Start() {
     // Process Input Arguments
     //romPath := flag.String("r", "", "rom file path")
    // fwPath := flag.String("f", "", "fw image file path")
@@ -98,8 +100,6 @@ func start() {
         iccm: C.caliptra_buffer{data: nil, len: 0},
     }
 
-    // Initialize Model
-    var model *C.caliptra_model
     C.caliptra_model_init_default(initParams, &model)
 
     // Initialize Fuses (Todo: Set real fuse values)
@@ -130,9 +130,11 @@ func start() {
     fmt.Println("Caliptra C Smoke Test Passed \n")
 }
 
-func commands(bytes []byte){
+func Commands(bytes []byte){
     var test C.uint32_t
-    profileBuffer := C.create_invoke_dpe_command(C.uint8_t(bytes))
+     // Convert the []byte to a *C.uchar pointer
+    cBytes := (*C.uchar)(unsafe.Pointer(&bytes[0]))
+    profileBuffer := C.create_invoke_dpe_command(cBytes)
     fmt.Println(profileBuffer)
     var Check C.caliptra_output
     var profile C.int
