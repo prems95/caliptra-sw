@@ -1,4 +1,4 @@
-package main
+package commands
 
 // #cgo CFLAGS: -I./../out/debug -std=c99
 // #cgo LDFLAGS: -L./../out/debug -lcaliptra_hw_model_c_binding -lc_wrapper -ldl
@@ -77,20 +77,23 @@ func read_file_or_die(path *C.char) C.caliptra_buffer {
     return buffer
 }
 
-func main() {
+func start() {
     // Process Input Arguments
-    romPath := flag.String("r", "", "rom file path")
-    fwPath := flag.String("f", "", "fw image file path")
-    flag.Parse()
+    //romPath := flag.String("r", "", "rom file path")
+   // fwPath := flag.String("f", "", "fw image file path")
+    //flag.Parse()
 
-    if *romPath == "" || *fwPath == "" {
+   /* if *romPath == "" || *fwPath == "" {
         flag.Usage()
         os.Exit(int(C.EINVAL))
-    }
+    }*/
+
+    romPath := "../out/caliptra_rom.bin"
+    fwPath := "..out/image_bundle.bin"
 
     // Initialize Params
     initParams := C.caliptra_model_init_params{
-        rom: read_file_or_die(C.CString(*romPath)),
+        rom: read_file_or_die(C.CString(romPath)),
         dccm: C.caliptra_buffer{data: nil, len: 0},
         iccm: C.caliptra_buffer{data: nil, len: 0},
     }
@@ -113,7 +116,7 @@ func main() {
     }
 
     // Load Image Bundle
-    imageBundle := read_file_or_die(C.CString(*fwPath))
+    imageBundle := read_file_or_die(C.CString(fwPath))
     C.caliptra_upload_fw(model, &imageBundle)
 
     // Run Until RT is ready to receive commands
@@ -121,18 +124,21 @@ func main() {
     C.caliptra_model_step(model)
         buffer := C.caliptra_model_output_peek(model)
         if C.strstr((*C.char)(unsafe.Pointer(buffer.data)), C.CString("Caliptra RT listening for mailbox commands...")) != nil {
-            var test C.uint32_t
-            profileBuffer := C.create_invoke_dpe_command(C.uint32_t(CmdMagic), C.uint32_t(CommandGetProfile),C.uint32_t(0x1))
-            fmt.Println(profileBuffer)
-            var Check C.caliptra_output
-            var profile C.int
-            profile = 5
-            profile = C.caliptra_get_profile(model, &profileBuffer,test,&Check)
-            fmt.Println("***********Status***************:\n",profile)
-            fmt.Println(test)
-            fmt.Println(Check)
             break
         }
     }
     fmt.Println("Caliptra C Smoke Test Passed \n")
+}
+
+func commands(bytes []byte){
+    var test C.uint32_t
+    profileBuffer := C.create_invoke_dpe_command(C.uint8_t(bytes))
+    fmt.Println(profileBuffer)
+    var Check C.caliptra_output
+    var profile C.int
+    profile = 5
+    profile = C.caliptra_get_profile(model, &profileBuffer,test,&Check)
+    fmt.Println("***********Status***************:\n",profile)
+    fmt.Println(test)
+    fmt.Println(Check)
 }
