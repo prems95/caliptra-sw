@@ -44,6 +44,7 @@ func handleRequest(conn net.Conn) {
 
 	// Execute the command and generate the response
 	// TODO: Implement command execution logic
+    fmt.Println(string(command))
 	Commands(command)
 
 // Create a byte buffer to hold the response
