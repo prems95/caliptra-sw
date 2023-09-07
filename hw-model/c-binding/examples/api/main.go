@@ -26,17 +26,16 @@ type RespHdr struct {
 }
 
 func handleRequest(conn net.Conn) {
-	defer conn.Close()
 
 	buf := make([]byte, BUFFER_SIZE)
-	_, err := conn.Read(buf)
+	n, err := conn.Read(buf)
 	if err != nil {
 		log.Printf("Error reading command: %v", err)
 		return
 	}
 
 	locality := uint32(buf[0]) | uint32(buf[1])<<8 | uint32(buf[2])<<16 | uint32(buf[3])<<24
-	command := buf[4:]
+	command := buf[4:n]
 
 	log.Printf("----------------------------------")
 	log.Printf("| Locality `%#x` requested %x", locality, command)
