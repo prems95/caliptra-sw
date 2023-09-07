@@ -45,7 +45,7 @@ func handleRequest(conn net.Conn) {
 	// TODO: Implement command execution logic
 	fmt.Println(command)
 	f, err := os.Create("dat2")
-	n2, err := f.Write(command)
+	_, err = f.Write(command)
 
     fmt.Println(string(command))
 	Commands(command)
