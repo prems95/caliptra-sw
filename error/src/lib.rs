@@ -281,6 +281,23 @@ impl CaliptraError {
     pub const DRIVER_CSRNG_RESEED: CaliptraError = CaliptraError::new_const(0x000d0003);
     pub const DRIVER_CSRNG_GENERATE: CaliptraError = CaliptraError::new_const(0x000d0004);
     pub const DRIVER_CSRNG_UPDATE: CaliptraError = CaliptraError::new_const(0x000d0005);
+    pub const DRIVER_CSRNG_OTHER_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0006);
+    pub const DRIVER_CSRNG_REPCNT_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0007);
+    pub const DRIVER_CSRNG_ADAPTP_HEALTH_CHECK_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000d0008);
+
+    pub const DRIVER_HANDOFF_INVALID_VAULT: CaliptraError = CaliptraError::new_const(0x000D100);
+    pub const DRIVER_HANDOFF_INVALID_KEY_ID: CaliptraError = CaliptraError::new_const(0x000D101);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D102);
+    pub const DRIVER_HANDOFF_INVALID_COLD_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D103);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY4: CaliptraError =
+        CaliptraError::new_const(0x000D104);
+    pub const DRIVER_HANDOFF_INVALID_WARM_RESET_ENTRY48: CaliptraError =
+        CaliptraError::new_const(0x000D104);
 
     /// Runtime Errors
     pub const RUNTIME_INTERNAL: CaliptraError = CaliptraError::new_const(0x000E0001);
@@ -303,6 +320,13 @@ impl CaliptraError {
     pub const RUNTIME_DISABLE_ATTESTATION_FAILED: CaliptraError =
         CaliptraError::new_const(0x000E0011);
     pub const RUNTIME_HANDOFF_INVALID_PARM: CaliptraError = CaliptraError::new_const(0x000E0012);
+    pub const RUNTIME_GET_DEVID_CERT_FAILED: CaliptraError = CaliptraError::new_const(0x000E0013);
+    pub const RUNTIME_CERT_CHAIN_CREATION_FAILED: CaliptraError =
+        CaliptraError::new_const(0x000E0014);
+    pub const RUNTIME_SELF_TEST_IN_PROGRESS: CaliptraError = CaliptraError::new_const(0x000E0015);
+    pub const RUNTIME_SELF_TEST_NOT_STARTED: CaliptraError = CaliptraError::new_const(0x000E0016);
+    pub const RUNTIME_INVALID_FMC_SIZE: CaliptraError = CaliptraError::new_const(0x000E0017);
+    pub const RUNTIME_INVALID_RUNTIME_SIZE: CaliptraError = CaliptraError::new_const(0x000E0018);
 
     /// FMC Errors
     pub const FMC_GLOBAL_NMI: CaliptraError = CaliptraError::new_const(0x000F0001);
@@ -321,6 +345,10 @@ impl CaliptraError {
     /// SOC_IFC driver Errors
     pub const DRIVER_SOC_IFC_INVALID_TIMER_CONFIG: CaliptraError =
         CaliptraError::new_const(0x00100001);
+
+    /// Bounded address Errors
+    pub const ADDRESS_MISALIGNED: CaliptraError = CaliptraError::new_const(0x00110000);
+    pub const ADDRESS_NOT_IN_ROM: CaliptraError = CaliptraError::new_const(0x00110001);
 
     /// Initial Device ID Errors
     pub const ROM_IDEVID_CSR_BUILDER_INIT_FAILURE: CaliptraError =
@@ -355,6 +383,10 @@ impl CaliptraError {
         CaliptraError::new_const(0x01040004);
     pub const ROM_UPDATE_RESET_READ_FHT_FAILURE: CaliptraError =
         CaliptraError::new_const(0x01040005);
+
+    // Warm Reset Errors
+    pub const ROM_WARM_RESET_UNSUCCESSFUL_PREVIOUS_COLD_RESET: CaliptraError =
+        CaliptraError::new_const(0x01040010);
 
     /// Unknown Reset Error
     pub const ROM_UNKNOWN_RESET_FLOW: CaliptraError = CaliptraError::new_const(0x01040020);
@@ -393,8 +425,8 @@ impl CaliptraError {
     pub const ROM_GLOBAL_UNSUPPORTED_FMCALIAS_TBS_SIZE: CaliptraError =
         CaliptraError::new_const(0x0105000A);
 
-    pub const ROM_GLOBAL_VAL_ROM_IN_PRODUCTION: CaliptraError =
-        CaliptraError::new_const(0x0105000A);
+    pub const ROM_GLOBAL_FAKE_ROM_IN_PRODUCTION: CaliptraError =
+        CaliptraError::new_const(0x0105000B);
 
     /// ROM KAT Errors
     pub const ROM_KAT_SHA256_DIGEST_FAILURE: CaliptraError = CaliptraError::new_const(0x90010001);
