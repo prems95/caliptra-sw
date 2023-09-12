@@ -12,6 +12,13 @@ typedef struct {
     uint8_t data[DPE_REQ_MAX_SIZE];
 } INVOKE_DPE_COMMAND;
 
+typedef struct {
+    uint32_t chksum;
+    uint32_t fips_status;
+    uint32_t data_size;
+    uint8_t data[DPE_REQ_MAX_SIZE];
+} INVOKE_DPE_COMMAND_OUTPUT;
+
 typedef struct  {
     uint32_t magic;
     uint32_t cmd;
