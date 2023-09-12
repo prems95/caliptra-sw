@@ -1,14 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"syscall"
-	"bytes"
-	"encoding/binary"
 )
 
 const (
@@ -25,7 +24,11 @@ type RespHdr struct {
 	Profile Profile
 }
 
+var count = 1
+
 func handleRequest(conn net.Conn) {
+
+	defer conn.Close()
 
 	buf := make([]byte, BUFFER_SIZE)
 	n, err := conn.Read(buf)
@@ -47,57 +50,57 @@ func handleRequest(conn net.Conn) {
 	f, err := os.Create("dat2")
 	_, err = f.Write(command)
 
-    fmt.Println(string(command))
-	Commands(command)
+	fmt.Println(string(command))
+	data := Commands(command)
 
-// Create a byte buffer to hold the response
-buffer := new(bytes.Buffer)
+	// Create a byte buffer to hold the response
+	buffer := new(bytes.Buffer)
 
-// Create a RespHdr struct with the desired values
-respHdr := RespHdr{
-	Magic:   0x44504552,
-	Status:  0,
-	Profile: 1,
-}
+	_, err = buffer.Write(data[:])
 
-// Write the RespHdr struct to the byte buffer
-err = binary.Write(buffer, binary.LittleEndian, &respHdr)
-if err != nil {
-	return
-}
+	// Create a RespHdr struct with the desired values
+	/*respHdr := RespHdr{
+		Magic:   0x44504552,
+		Status:  0,
+		Profile: 1,
+	}
 
+	// Write the RespHdr struct to the byte buffer
+	err = binary.Write(buffer, binary.LittleEndian, &respHdr)
+	if err != nil {
+		return
+	}
 
-type GetProfileResp struct {
-	Profile      Profile
-	MajorVersion uint16
-	MinorVersion uint16
-	VendorId     uint32
-	VendorSku    uint32
-	MaxTciNodes  uint32
-	Flags        uint32
-}
+	type GetProfileResp struct {
+		Profile      Profile
+		MajorVersion uint16
+		MinorVersion uint16
+		VendorId     uint32
+		VendorSku    uint32
+		MaxTciNodes  uint32
+		Flags        uint32
+	}
 
-// Create a GetProfileResp struct with the desired values
-getProfileResp := GetProfileResp{
-	Profile:      1,
-	MajorVersion: 2,
-	MinorVersion: 3,
-	VendorId:     4,
-	VendorSku:    5,
-	MaxTciNodes:  6,
-	Flags:        7,
-}
+	// Create a GetProfileResp struct with the desired values
+	getProfileResp := GetProfileResp{
+		Profile:      1,
+		MajorVersion: 2,
+		MinorVersion: 3,
+		VendorId:     4,
+		VendorSku:    5,
+		MaxTciNodes:  6,
+		Flags:        7,
+	}
 
-// Write the GetProfileResp struct to the byte buffer
-err = binary.Write(buffer, binary.LittleEndian, &getProfileResp)
-if err != nil {
-	return 
-}
+	// Write the GetProfileResp struct to the byte buffer
+	err = binary.Write(buffer, binary.LittleEndian, &getProfileResp)
+	if err != nil {
+		return
+	}*/
 
-// Get the byte slice representation of the response
-resp := buffer.Bytes()
-
-
+	// Get the byte slice representation of the response
+	resp := buffer.Bytes()
+	fmt.Println(resp)
 
 	// Send the response back to the client
 	_, err = conn.Write(resp)
@@ -105,6 +108,12 @@ resp := buffer.Bytes()
 		log.Printf("Error sending response: %v", err)
 		return
 	}
+
+	/*if count > 2 {
+		conn.Close()
+	} else {
+		count = count + 1
+	}*/
 
 	//log.Printf("| Response Code %#06x", responseCode)
 	log.Printf("----------------------------------")
